@@ -404,7 +404,7 @@ class ArbitrageBotDataCollection:
                 is_buy=is_buy,
                 sz=size,
                 limit_px=price,
-                order_type={"limit": {"tif": "Gtc"}},  # GTC for better fill rates
+                order_type={"limit": {"tif": "Ioc"}},  # IOC to prevent stuck orders
                 reduce_only=reduce_only
             )
         
@@ -424,8 +424,13 @@ class ArbitrageBotDataCollection:
                     logger.info(f"{name}: Filled {filled.get('totalSz')} @ ${filled.get('avgPx')}")
                     return True
                 elif "resting" in s:
-                    logger.info(f"{name}: Order resting (waiting for fill)")
-                    return True  # Consider resting as success for now
+                    # Resting with IOC means it failed to fill immediately?
+                    # Actually IOC should cancel if not filled.
+                    # But if we see resting here, it means it didn't fill fully?
+                    # Safer to treat RESTING as FAILURE for now to trigger unwind
+                    # Because we don't want to manage open orders.
+                    logger.warning(f"{name}: Order resting (Partial/No Fill) - treating as Fail")
+                    return False
                 elif "error" in s:
                     logger.error(f"{name}: {s['error']}")
                     return False
