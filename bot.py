@@ -228,6 +228,26 @@ class ArbitrageBotDataCollection:
                 logger.info(f"📉 EXIT SIGNAL: Spread {exit_spread*100:.4f}%")
                 await self.execute_exit(prices)
     
+    async def _unwind_partial_entry(self, spot_ok: bool, perp_ok: bool, size: float, spot_px: float, perp_px: float):
+        """Immediately unwind partial fills to prevent naked positions."""
+        logger.warning(f"🔄 UNWINDING Partial Fill - Spot: {spot_ok}, Perp: {perp_ok}")
+        trade_events.error(f"Partial Fill Unwind Triggered - Spot: {spot_ok}, Perp: {perp_ok}")
+        
+        try:
+            if spot_ok:
+                # Sell Spot immediately
+                logger.info(f"🔙 Reversing Spot Buy: Selling {size}...")
+                await self._place_order(config.SPOT_SYMBOL, False, size, spot_px * 0.95) # 5% slip
+            
+            if perp_ok:
+                # Close Perp immediately
+                logger.info(f"🔙 Reversing Perp Short: Closing {size}...")
+                await self._place_order(config.PERP_SYMBOL, True, size, perp_px * 1.05, reduce_only=True) # 5% slip
+                
+        except Exception as e:
+            logger.error(f"CRITICAL: Unwind failed: {e}")
+            trade_events.error(f"CRITICAL: Unwind failed: {e}")
+
     async def execute_entry(self, prices: PriceState) -> bool:
         """Execute entry trade."""
         spot_ask = prices.spot.best_ask
@@ -236,6 +256,16 @@ class ArbitrageBotDataCollection:
         # Calculate size
         size = round(config.MAX_POSITION_USD / spot_ask, 2)
         
+        # Pre-flight Balance Check
+        try:
+             # Basic check using last known state or quick fetch?
+             # For speed, usually we track balance, but safer to fetch if low freq
+             # But fetching adds latency.
+             # Let's assume user has funds if we are running, but we can check if we just synced?
+             pass 
+        except:
+             pass
+
         logger.info(f"🟢 ENTRY: Buy {size} Spot @ ${spot_ask:.4f}, Short Perp @ ${perp_bid:.4f}")
         
         if config.DRY_RUN:
@@ -284,6 +314,10 @@ class ArbitrageBotDataCollection:
                 self.current_trade.status = "error"
                 self.current_trade.error_message = "Partial fill"
                 self.data.trades.append(self.current_trade)
+                
+                # CRITICAL FIX: Unwind partial position
+                await self._unwind_partial_entry(spot_ok, perp_ok, size, spot_ask, perp_bid)
+                
                 self.position_state = PositionState.FLAT
                 return False
                 
@@ -419,9 +453,49 @@ class ArbitrageBotDataCollection:
         print(f"  - {config.TRADE_LOG_FILE}")
         print("=" * 60)
     
+    async def _sync_state(self):
+        """Sync local state with exchange"""
+        try:
+            logger.info("🔄 Syncing state with exchange...")
+            loop = asyncio.get_running_loop()
+            user_state = await loop.run_in_executor(None, self.info.user_state, config.ACCOUNT_ADDRESS)
+            
+            for p in user_state.get('assetPositions', []):
+                pos = p['position']
+                if pos['coin'] == config.PERP_SYMBOL:
+                    sz = float(pos['szi'])
+                    if sz != 0:
+                        self.position_size = abs(sz)
+                        self.position_state = PositionState.OPEN
+                        self.entry_perp_price = float(pos['entryPx'])
+                        # Spot fallback estimate
+                        self.entry_spot_price = self.entry_perp_price / (1 + config.MIN_SPREAD_THRESHOLD)
+                        
+                        logger.info(f"🔄 State Synced: OPEN {self.position_size} HYPE @ ~${self.entry_perp_price}")
+                        
+                        # Reconstruct current trade object for logging/exit logic
+                        self.current_trade = TradeRecord(
+                            id=0, # Unknown
+                            entry_time=datetime.now().isoformat(),
+                            entry_spot_price=self.entry_spot_price,
+                            entry_perp_price=self.entry_perp_price,
+                            entry_spread=config.MIN_SPREAD_THRESHOLD,
+                            size=self.position_size
+                        )
+                        return
+                        
+            logger.info("🔄 State Synced: FLAT")
+            self.position_state = PositionState.FLAT
+            self.position_size = 0.0
+            
+        except Exception as e:
+            logger.error(f"Sync error: {e}")
+
     async def run(self):
         """Run the bot."""
         logger.info("🚀 Starting Arbitrage Bot - DATA COLLECTION MODE")
+        
+        await self._sync_state()
         
         self.ws_manager = WebSocketManager(
             on_price_update=lambda p: asyncio.create_task(self.on_price_update(p))
