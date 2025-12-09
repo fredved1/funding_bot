@@ -104,6 +104,7 @@ class Dashboard {
         this.updateConfig(data.config);
         this.updateStatus(data.status);
         this.updateChart(data.spread);
+        this.updateAccountValue(data.account);
 
         // Display trade events in activity log
         if (data.trade_events && data.trade_events.length > 0) {
@@ -303,6 +304,18 @@ class Dashboard {
             fundingEl.textContent = `${rate >= 0 ? '+' : ''}${rate.toFixed(4)}%`;
             fundingEl.style.color = rate >= 0 ? 'var(--success)' : 'var(--danger)';
         }
+    }
+
+    updateAccountValue(account) {
+        if (!account) return;
+
+        const equityEl = document.getElementById('account-equity');
+        const spotEl = document.getElementById('spot-value');
+        const perpEl = document.getElementById('perp-value');
+
+        if (equityEl) equityEl.textContent = `$${account.total.toFixed(2)}`;
+        if (spotEl) spotEl.textContent = `$${account.spot.toFixed(2)}`;
+        if (perpEl) perpEl.textContent = `$${account.perp.toFixed(2)}`;
     }
 
     updatePosition(position) {

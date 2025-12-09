@@ -73,6 +73,11 @@ class DashboardState:
     dry_run: bool = config.DRY_RUN
     max_position_usd: float = config.MAX_POSITION_USD
     
+    # Account
+    account_equity: float = 0.0
+    spot_value: float = 0.0
+    perp_value: float = 0.0
+    
     # Status
     bot_running: bool = False
     ws_connected: bool = False
@@ -181,6 +186,19 @@ class DashboardServer:
             else:
                 self.state.has_position = False
                 self.state.position_size = 0
+            
+            # Fetch Account Equity (Total Value)
+            perp_equity = float(perp_data.get('marginSummary', {}).get('accountValue', 0))
+            spot_equity = sum(float(b.get('total', 0)) * prices.spot.best_bid 
+                             for b in spot_data.get('balances', []) 
+                             if b.get('coin') == 'HYPE')
+            spot_equity += sum(float(b.get('total', 0)) 
+                              for b in spot_data.get('balances', []) 
+                              if b.get('coin') == 'USDC')
+            
+            self.state.perp_value = perp_equity
+            self.state.spot_value = spot_equity
+            self.state.account_equity = perp_equity + spot_equity
             
             # Fetch funding rate
             try:
@@ -356,6 +374,11 @@ class DashboardServer:
                 "bot_running": self.state.bot_running,
                 "ws_connected": self.state.ws_connected,
                 "last_update": self.state.last_update,
+            },
+            "account": {
+                "total": self.state.account_equity,
+                "spot": self.state.spot_value,
+                "perp": self.state.perp_value,
             },
             "trade_events": te_events,
             "spread_log": self._get_spread_log_summary()

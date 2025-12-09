@@ -798,3 +798,62 @@ body {
         grid-template-columns: 1fr;
     }
 }
+/* Account Value Card */
+.account-card {
+    grid-column: span 1;
+}
+
+.account-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.account-main {
+    text-align: center;
+    padding: var(--space-lg);
+    background: var(--accent-gradient);
+    border-radius: var(--radius-md);
+}
+
+.account-label {
+    display: block;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: var(--space-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.account-value {
+    font-size: 2rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: white;
+}
+
+.account-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.account-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-sm) var(--space-md);
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-sm);
+}
+
+.account-row .label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.account-row .value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-primary);
+}

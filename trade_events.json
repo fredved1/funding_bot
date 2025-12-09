@@ -23,59 +23,52 @@
       }
     },
     {
-      "timestamp": "2025-12-09T17:14:01.757857",
+      "timestamp": "2025-12-09T17:28:58.231954",
       "event_type": "entry",
-      "message": "\ud83d\udfe2 ENTRY: 0.35 HYPE @ Spot $28.73, Perp $28.81",
+      "message": "\ud83d\udfe2 ENTRY: 0.41 HYPE @ Spot $29.02, Perp $29.07",
       "details": {
-        "size": 0.35,
-        "spot_price": 28.734,
-        "perp_price": 28.806,
-        "spread": 3.479713271630671e-05
+        "size": 0.41,
+        "spot_price": 29.019,
+        "perp_price": 29.07,
+        "spread": 0.0007927207554973354
       }
     },
     {
-      "timestamp": "2025-12-09T17:14:05.185984",
+      "timestamp": "2025-12-09T17:35:40.252272",
       "event_type": "exit",
-      "message": "\ud83d\udd34 EXIT: 0.35 HYPE @ Spot $28.71, Perp $28.72 | P&L: $+0.0123",
+      "message": "\ud83d\udd34 EXIT: 0.41 HYPE @ Spot $29.08, Perp $29.08 | P&L: $+0.0069",
       "details": {
-        "size": 0.35,
-        "spot_price": 28.708,
-        "perp_price": 28.716,
-        "net_pnl": 0.012340649999998777
+        "size": 0.41,
+        "spot_price": 29.076,
+        "perp_price": 29.081,
+        "net_pnl": 0.006944785000001199
       }
     },
     {
-      "timestamp": "2025-12-09T17:17:49.386232",
+      "timestamp": "2025-12-09T18:29:23.143363",
       "event_type": "entry",
-      "message": "\ud83d\udfe2 ENTRY: 0.35 HYPE @ Spot $28.84, Perp $28.88",
+      "message": "\ud83d\udfe2 ENTRY: 0.42 HYPE @ Spot $28.51, Perp $28.61",
       "details": {
-        "size": 0.35,
-        "spot_price": 28.835,
-        "perp_price": 28.88,
-        "spread": 0.0006930006930006783
+        "size": 0.42,
+        "spot_price": 28.51,
+        "perp_price": 28.612,
+        "spread": 0.0009445513381143071
       }
     },
     {
-      "timestamp": "2025-12-09T17:28:58.210999",
-      "event_type": "error",
-      "message": "\u26a0\ufe0f ERROR: Partial Fill Unwind Triggered - Spot: True, Perp: False",
-      "details": {}
-    },
-    {
-      "timestamp": "2025-12-09T17:32:31.626463",
-      "event_type": "error",
-      "message": "\u26a0\ufe0f ERROR: Partial Fill Unwind Triggered - Spot: False, Perp: True",
-      "details": {}
+      "timestamp": "2025-12-09T18:30:04.183708",
+      "event_type": "exit",
+      "message": "\ud83d\udd34 EXIT: 0.42 HYPE @ Spot $28.66, Perp $28.66 | P&L: $+0.0296",
+      "details": {
+        "size": 0.42,
+        "spot_price": 28.657,
+        "perp_price": 28.66,
+        "net_pnl": 0.02956390499999859
+      }
     }
   ],
-  "trades_executed": 2,
-  "total_pnl": 0.019927379999998593,
-  "current_position": {
-    "size": 0.35,
-    "entry_spot": 28.835,
-    "entry_perp": 28.88,
-    "entry_spread": 0.0006930006930006783,
-    "entry_time": "2025-12-09T17:17:49.386193"
-  },
-  "last_update": "2025-12-09T17:32:31.626483"
+  "trades_executed": 3,
+  "total_pnl": 0.04409541999999961,
+  "current_position": null,
+  "last_update": "2025-12-09T18:30:04.183718"
 }
