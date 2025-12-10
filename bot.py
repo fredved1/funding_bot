@@ -266,18 +266,39 @@ class ArbitrageBotDataCollection:
         size = round(config.MAX_POSITION_USD / spot_ask, 2)
         required_usd = size * spot_ask * 1.1  # 10% buffer for fees
         
-        # Pre-flight Balance Check
+        # Pre-flight Balance Check - BOTH Spot AND Perps wallets
         try:
+            # Check SPOT balance (for buying HYPE)
             resp = requests.post('https://api.hyperliquid.xyz/info',
                 json={'type': 'spotClearinghouseState', 'user': config.ACCOUNT_ADDRESS},
                 timeout=5)
             spot_state = resp.json()
-            usdc_balance = sum(float(b.get('total', 0)) for b in spot_state.get('balances', []) if b.get('coin') == 'USDC')
+            spot_usdc = sum(float(b.get('total', 0)) for b in spot_state.get('balances', []) if b.get('coin') == 'USDC')
             
-            if usdc_balance < required_usd:
-                logger.warning(f"⚠️ Insufficient balance: ${usdc_balance:.2f} < ${required_usd:.2f}")
-                self._last_failed_entry = time.time()  # Trigger cooldown
+            # Check PERPS balance (for margin on short)
+            resp_perp = requests.post('https://api.hyperliquid.xyz/info',
+                json={'type': 'clearinghouseState', 'user': config.ACCOUNT_ADDRESS},
+                timeout=5)
+            perp_state = resp_perp.json()
+            # withdrawable = available margin for new positions
+            perp_margin = float(perp_state.get('withdrawable', 0))
+            
+            # Required: spot needs full amount, perps needs ~20% margin (5x leverage default)
+            required_spot = required_usd
+            required_perp_margin = size * perp_bid * 0.25  # 25% margin buffer for safety
+            
+            if spot_usdc < required_spot:
+                logger.warning(f"⚠️ Insufficient SPOT balance: ${spot_usdc:.2f} < ${required_spot:.2f}")
+                self._last_failed_entry = time.time()
                 return False
+            
+            if perp_margin < required_perp_margin:
+                logger.warning(f"⚠️ Insufficient PERP margin: ${perp_margin:.2f} < ${required_perp_margin:.2f}")
+                self._last_failed_entry = time.time()
+                return False
+                
+            logger.info(f"💰 Balance OK - Spot: ${spot_usdc:.2f}, Perp Margin: ${perp_margin:.2f}")
+            
         except Exception as e:
             logger.error(f"Balance check failed: {e}")
             self._last_failed_entry = time.time()
