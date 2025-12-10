@@ -365,8 +365,10 @@ class ArbitrageBotDataCollection:
         
         try:
             # SEQUENTIAL EXECUTION: Spot first
-            logger.info("📦 Step 1/2: Placing Spot order...")
-            spot_result = await self._place_order(config.SPOT_SYMBOL, True, size, spot_ask)
+            # Use small slippage buffer to ensure IOC fills
+            spot_limit = round(spot_ask * 1.001, 5)  # 0.1% above ask for buy
+            logger.info(f"📦 Step 1/2: Placing Spot order @ ${spot_limit:.4f}...")
+            spot_result = await self._place_order(config.SPOT_SYMBOL, True, size, spot_limit)
             spot_ok = self._check_fill(spot_result, "Spot Buy")
             
             if not spot_ok:
@@ -382,8 +384,10 @@ class ArbitrageBotDataCollection:
                 return False
             
             # Spot succeeded, now do perp
-            logger.info("📊 Step 2/2: Placing Perp order...")
-            perp_result = await self._place_order(config.PERP_SYMBOL, False, size, perp_bid)
+            # Use slippage buffer for short (lower price to ensure fill)
+            perp_limit = round(perp_bid * 0.999, 5)  # 0.1% below bid for sell
+            logger.info(f"📊 Step 2/2: Placing Perp order @ ${perp_limit:.4f}...")
+            perp_result = await self._place_order(config.PERP_SYMBOL, False, size, perp_limit)
             perp_ok = self._check_fill(perp_result, "Perp Short")
             
             if not perp_ok:
