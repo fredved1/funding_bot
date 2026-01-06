@@ -216,21 +216,35 @@ def render_market_monitor():
     with col2:
         apr = market['funding_apr']
         target_apr = MIN_FUNDING_APR * 100
+        hourly_rate = market['funding_rate']
         
-        # Color based on threshold
+        # Color based on value: Green (good), Orange (low), Red (zero/negative)
         if apr >= target_apr:
+            # GREEN: Above target
             st.metric(
                 label="Funding APR",
                 value=f"{apr:.2f}%",
                 delta=f"✅ Above {target_apr:.0f}% target"
             )
-        else:
+        elif apr > 0:
+            # ORANGE: Positive but below target
             st.metric(
                 label="Funding APR",
                 value=f"{apr:.2f}%",
-                delta=f"Below {target_apr:.0f}% target",
+                delta=f"⚠️ Below {target_apr:.0f}% target",
+                delta_color="off"
+            )
+        else:
+            # RED: Zero or negative
+            st.metric(
+                label="Funding APR",
+                value=f"{apr:.2f}%",
+                delta="🔴 No funding / Negative",
                 delta_color="inverse"
             )
+        
+        # Debug info (smaller text below metric)
+        st.caption(f"Raw hourly: {hourly_rate:.6f} ({hourly_rate*100:.4f}%)")
     
     with col3:
         st.metric(
