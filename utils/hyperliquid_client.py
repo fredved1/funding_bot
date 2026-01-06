@@ -217,10 +217,18 @@ class HyperliquidClient:
         
         def _get():
             try:
-                meta = self.info.meta()
-                for asset in meta.get("universe", []):
-                    if asset.get("name") == coin:
-                        return float(asset.get("funding", 0))
+                # Use metaAndAssetCtxs which contains actual funding rate
+                result = requests.post(
+                    'https://api.hyperliquid.xyz/info',
+                    json={'type': 'metaAndAssetCtxs'},
+                    timeout=5
+                ).json()
+                
+                meta, asset_ctxs = result[0], result[1]
+                for i, asset in enumerate(meta.get('universe', [])):
+                    if asset.get('name') == coin:
+                        ctx = asset_ctxs[i] if i < len(asset_ctxs) else {}
+                        return float(ctx.get('funding', 0))
                 return 0.0
             except Exception as e:
                 logger.error(f"Funding rate error: {e}")

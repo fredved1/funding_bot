@@ -59,18 +59,21 @@ def fetch_market_data():
         mids = mids_response.json()
         price = float(mids.get(COIN_NAME, 0))
         
-        # Get meta for funding rate
+        # Get meta for funding rate - use metaAndAssetCtxs which has actual funding data
         meta_response = requests.post(
             'https://api.hyperliquid.xyz/info',
-            json={'type': 'meta'},
+            json={'type': 'metaAndAssetCtxs'},
             timeout=5
         )
-        meta = meta_response.json()
+        data = meta_response.json()
+        meta, asset_ctxs = data[0], data[1]
         
         funding_rate = 0.0
-        for asset in meta.get('universe', []):
+        for i, asset in enumerate(meta.get('universe', [])):
             if asset.get('name') == COIN_NAME:
-                funding_rate = float(asset.get('funding', 0))
+                # Funding rate is in the corresponding asset context
+                ctx = asset_ctxs[i] if i < len(asset_ctxs) else {}
+                funding_rate = float(ctx.get('funding', 0))
                 break
         
         # Get L2 book for spread
