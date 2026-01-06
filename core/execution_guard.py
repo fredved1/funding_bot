@@ -116,11 +116,18 @@ class ExecutionGuard:
         spot_cloid = uuid4().hex
         perp_cloid = uuid4().hex
         
-        # Calculate sizes
-        spot_size = round(size_usd / spot_price, 4)
-        perp_size = round(size_usd / perp_price, 4)
+        # CRITICAL FIX: Spot @150 is USDC-denominated (~$1.0 per unit)
+        # The actual token value is the perp price (~$27)
+        # So we calculate size in tokens using perp price
+        token_size = round(size_usd / perp_price, 4)
+        
+        # For spot: we spend size_usd USDC to buy token_size HYPE
+        # The spot "price" is ~1.0 (USDC ratio), but we use token_size directly
+        spot_size = token_size
+        perp_size = token_size
         
         # Slippage-adjusted prices
+        # Spot: allow 1% slippage on USDC price
         spot_limit = round(spot_price * (1 + self.slippage_buffer), 5)  # Buy higher
         perp_limit = round(perp_price * (1 - self.slippage_buffer), 5)  # Sell lower
         
@@ -129,7 +136,7 @@ class ExecutionGuard:
         state.add_pending_order(PendingOrder(spot_cloid, coin, "spot", True, spot_size, spot_limit))
         state.add_pending_order(PendingOrder(perp_cloid, coin, "perp", False, perp_size, perp_limit))
         
-        logger.info(f"🚀 Executing DN: {coin} Spot {spot_size} @ {spot_limit}, Perp {perp_size} @ {perp_limit}")
+        logger.info(f"🚀 Executing DN: {coin} tokens={token_size}, Spot @ {spot_limit}, Perp @ {perp_limit}")
         
         try:
             # PARALLEL EXECUTION
