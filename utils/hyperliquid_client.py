@@ -72,9 +72,10 @@ class HyperliquidClient:
         sz_decimals = self._get_sz_decimals(symbol, is_spot)
         size = round(size, sz_decimals)
         
-        # Round price: 8 decimals for spot, 6 for perp (SDK standard)
-        price_decimals = 8 if is_spot else 6
-        price = round(price, price_decimals)
+        # Round price using SDK formula: 5 significant figures, then proper decimals
+        # Perp: 6 - szDecimals decimals, Spot: 8 - szDecimals decimals
+        price_decimals = (8 if is_spot else 6) - sz_decimals
+        price = round(float(f"{price:.5g}"), price_decimals)
         
         logger.info(f"📤 Placing {side} order: symbol={symbol}, is_buy={is_buy}, size={size}, price={price}")
         
