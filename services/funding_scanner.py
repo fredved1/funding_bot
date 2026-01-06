@@ -84,41 +84,59 @@ class FundingScanner:
         opportunities = []
         
         try:
-            # Get all funding rates
+            # Get funding rate for configured coin
+            coin = getattr(config, 'COIN_NAME', 'HYPE')
             funding_rates = await self._get_all_funding_rates()
             
-            for coin, rate in funding_rates.items():
+            logger.info(f"📊 Funding rates fetched: {funding_rates}")
+            
+            for coin_name, rate in funding_rates.items():
+                # Calculate APR (rate is hourly, convert to annual percentage)
+                apr = rate * 24 * 365  # This is a ratio, not percentage
+                apr_pct = apr * 100  # Convert to percentage for display
+                
+                logger.info(f"🔍 Scanning {coin_name}: Rate={rate:.8f}, APR={apr_pct:.2f}%")
+                
                 # Skip if funding is negative (shorts pay)
                 if rate <= 0:
-                    continue
-                
-                # Calculate APR
-                apr = rate * 24 * 365
-                
-                # Check minimum APR
-                if apr < self.min_apr:
-                    continue
-                
-                # Check liquidity
-                liquidity = await self._get_liquidity(coin)
-                if liquidity < self.min_liquidity_usd:
+                    logger.warning(f"⚠️ {coin_name}: Skipping - funding rate is {rate} (negative/zero)")
                     opportunities.append(FundingOpportunity(
-                        coin=coin,
+                        coin=coin_name,
                         funding_rate_hourly=rate,
                         funding_apr=apr,
-                        liquidity_usd=liquidity,
+                        liquidity_usd=0,
                         days_to_breakeven=999,
                         net_apy=0,
                         viable=False,
-                        reason=f"Low liquidity: ${liquidity:,.0f}"
+                        reason="Negative/zero funding rate"
                     ))
                     continue
+                
+                # Check minimum APR (min_apr is a ratio like 0.20 for 20%)
+                if apr < self.min_apr:
+                    logger.info(f"⚠️ {coin_name}: Below target - APR {apr_pct:.2f}% < {self.min_apr*100:.0f}%")
+                    opportunities.append(FundingOpportunity(
+                        coin=coin_name,
+                        funding_rate_hourly=rate,
+                        funding_apr=apr,
+                        liquidity_usd=10_000_000,
+                        days_to_breakeven=999,
+                        net_apy=apr_pct - (self.roundtrip_cost * 100),
+                        viable=False,
+                        reason=f"APR {apr_pct:.1f}% below {self.min_apr*100:.0f}% target"
+                    ))
+                    continue
+                
+                # Check liquidity
+                liquidity = await self._get_liquidity(coin_name)
                 
                 # Validate break-even
                 validation = self._validate_opportunity(rate, apr)
                 
+                logger.info(f"✅ {coin_name}: Viable! APR={apr_pct:.2f}%, BE={validation['days_to_breakeven']}d")
+                
                 opportunities.append(FundingOpportunity(
-                    coin=coin,
+                    coin=coin_name,
                     funding_rate_hourly=rate,
                     funding_apr=apr,
                     liquidity_usd=liquidity,
@@ -139,13 +157,14 @@ class FundingScanner:
             viable = [o for o in opportunities if o.viable]
             logger.info(f"📊 Found {len(viable)} viable opportunities out of {len(opportunities)} scanned")
             
-            for o in viable[:5]:  # Top 5
-                logger.info(f"  ✅ {o.coin}: APR {o.funding_apr*100:.1f}%, Net APY {o.net_apy:.1f}%, BE: {o.days_to_breakeven:.1f}d")
+            for o in opportunities:  # Show all, not just viable
+                status = "✅" if o.viable else "❌"
+                logger.info(f"  {status} {o.coin}: APR {o.funding_apr*100:.1f}%, Net APY {o.net_apy:.1f}%, {o.reason}")
             
             return opportunities
             
         except Exception as e:
-            logger.error(f"Scan error: {e}")
+            logger.error(f"Scan error: {e}", exc_info=True)
             return []
     
     async def get_best_opportunity(self) -> Optional[FundingOpportunity]:
@@ -194,13 +213,33 @@ class FundingScanner:
         }
     
     async def _get_all_funding_rates(self) -> Dict[str, float]:
-        """Get funding rates for all coins."""
+        """Get funding rates for configured coin using correct API."""
+        import requests
+        
+        coin = getattr(config, 'COIN_NAME', 'HYPE')
+        
         try:
-            # For MVP, just check HYPE
-            rate = await self.client.get_funding_rate("HYPE")
-            return {"HYPE": rate}
+            # Use metaAndAssetCtxs which contains actual funding rate
+            result = requests.post(
+                'https://api.hyperliquid.xyz/info',
+                json={'type': 'metaAndAssetCtxs'},
+                timeout=10
+            ).json()
+            
+            meta, asset_ctxs = result[0], result[1]
+            
+            for i, asset in enumerate(meta.get('universe', [])):
+                if asset.get('name') == coin:
+                    ctx = asset_ctxs[i] if i < len(asset_ctxs) else {}
+                    rate = float(ctx.get('funding', 0))
+                    logger.info(f"📡 Fetched {coin} funding rate: {rate:.8f} ({rate*100:.4f}% hourly)")
+                    return {coin: rate}
+            
+            logger.warning(f"⚠️ Coin {coin} not found in universe")
+            return {}
+            
         except Exception as e:
-            logger.error(f"Funding rate fetch error: {e}")
+            logger.error(f"Funding rate fetch error: {e}", exc_info=True)
             return {}
     
     async def _get_liquidity(self, coin: str) -> float:
