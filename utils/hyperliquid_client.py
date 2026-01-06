@@ -288,7 +288,7 @@ class HyperliquidClient:
         return self._sz_decimals.get(cache_key, 2)
     
     def _parse_order_result(self, result: Dict) -> Dict[str, Any]:
-        \"\"\"Parse SDK order result into standardized format.\"\"\"
+        """Parse SDK order result into standardized format."""
         if result.get("status") != "ok":
             return {"status": "failed", "error": str(result)}
         
