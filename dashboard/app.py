@@ -57,6 +57,8 @@ def fetch_market_data():
             timeout=5
         )
         mids = mids_response.json()
+        if mids is None:
+            raise ValueError("allMids returned None")
         price = float(mids.get(COIN_NAME, 0))
         
         # Get meta for funding rate - use metaAndAssetCtxs which has actual funding data
@@ -66,15 +68,18 @@ def fetch_market_data():
             timeout=5
         )
         data = meta_response.json()
+        if data is None or not isinstance(data, list) or len(data) < 2:
+            raise ValueError("metaAndAssetCtxs returned invalid data")
         meta, asset_ctxs = data[0], data[1]
         
         funding_rate = 0.0
-        for i, asset in enumerate(meta.get('universe', [])):
-            if asset.get('name') == COIN_NAME:
-                # Funding rate is in the corresponding asset context
-                ctx = asset_ctxs[i] if i < len(asset_ctxs) else {}
-                funding_rate = float(ctx.get('funding', 0))
-                break
+        if meta is not None:
+            for i, asset in enumerate(meta.get('universe', [])):
+                if asset.get('name') == COIN_NAME:
+                    # Funding rate is in the corresponding asset context
+                    ctx = asset_ctxs[i] if i < len(asset_ctxs) else {}
+                    funding_rate = float(ctx.get('funding', 0)) if ctx else 0.0
+                    break
         
         # Get L2 book for spread
         l2_response = requests.post(
