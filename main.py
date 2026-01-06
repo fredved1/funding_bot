@@ -103,22 +103,32 @@ async def resolve_spot_asset_id(client: HyperliquidClient) -> str:
                 logger.error("Failed to fetch spot metadata")
                 return None
             
-            # Find the token by name
+            # Step 1: Find the token index for our coin
+            token_index = None
+            usdc_index = 0  # USDC is always index 0
+            
             for token in spot_meta.get('tokens', []):
                 if token.get('name') == config.COIN_NAME:
-                    # The index is the token ID
                     token_index = token.get('index')
-                    if token_index is not None:
-                        spot_symbol = f"@{token_index}"
-                        logger.info(f"✅ Resolved {config.COIN_NAME} -> {spot_symbol}")
-                        return spot_symbol
+                    logger.debug(f"Found {config.COIN_NAME} token at index {token_index}")
+                    break
             
-            # Also check universe for perps
-            meta = client.info.meta()
-            for i, asset in enumerate(meta.get('universe', [])):
-                if asset.get('name') == config.COIN_NAME:
-                    logger.debug(f"Found {config.COIN_NAME} in perp universe at index {i}")
+            if token_index is None:
+                logger.error(f"Token {config.COIN_NAME} not found in spot metadata")
+                return None
             
+            # Step 2: Find the COIN/USDC pair in universe
+            # The pair has tokens = [coin_index, usdc_index]
+            for pair in spot_meta.get('universe', []):
+                tokens = pair.get('tokens', [])
+                # Check if this pair is COIN/USDC (order matters: [coin, usdc])
+                if len(tokens) == 2 and tokens[0] == token_index and tokens[1] == usdc_index:
+                    pair_index = pair.get('index')
+                    spot_symbol = f"@{pair_index}"
+                    logger.info(f"✅ Resolved {config.COIN_NAME}/USDC pair -> {spot_symbol}")
+                    return spot_symbol
+            
+            logger.error(f"No {config.COIN_NAME}/USDC pair found in spot universe")
             return None
             
         except Exception as e:
