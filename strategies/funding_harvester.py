@@ -110,7 +110,7 @@ class FundingHarvester:
             remaining_capacity = self.max_total_exposure - state.total_exposure_usd
             size_usd = min(self.max_position_usd, remaining_capacity)
             
-            if size_usd < 10:  # Minimum position
+            if size_usd < 5:  # Minimum position lowered for testing
                 continue
             
             # Get current prices
@@ -120,10 +120,10 @@ class FundingHarvester:
                 logger.warning(f"Invalid prices for {opp.coin}")
                 continue
             
-            # Check balances
+            # Check balances - lowered requirements for testing
             balances = await self.client.get_balances()
-            required_spot = size_usd * 1.05
-            required_margin = size_usd * 0.30  # 30% margin buffer
+            required_spot = size_usd * 1.02  # 2% buffer instead of 5%
+            required_margin = size_usd * 0.20  # 20% margin buffer instead of 30%
             
             if balances["spot_usdc"] < required_spot:
                 logger.warning(f"Insufficient spot USDC: ${balances['spot_usdc']:.2f}")
