@@ -70,6 +70,8 @@ class HyperliquidClient:
         # Round size to proper decimals
         size = self._round_size(coin, size)
         
+        logger.info(f"📤 Placing {side} order: symbol={symbol}, is_buy={is_buy}, size={size}, price={price}")
+        
         def _place():
             try:
                 result = self.exchange.order(
@@ -78,11 +80,12 @@ class HyperliquidClient:
                     sz=size,
                     limit_px=price,
                     order_type={"limit": {"tif": "Ioc"}},  # IOC for immediate fill
-                    reduce_only=(not is_buy and side == "perp" and not is_buy)
+                    reduce_only=False  # Fixed: was buggy logic
                 )
+                logger.info(f"📥 Order response: {result}")
                 return self._parse_order_result(result)
             except Exception as e:
-                logger.error(f"Order placement error: {e}")
+                logger.error(f"Order placement error: {e}", exc_info=True)
                 return {"status": "failed", "error": str(e)}
         
         return await loop.run_in_executor(None, _place)
