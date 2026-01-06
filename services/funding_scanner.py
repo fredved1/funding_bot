@@ -38,7 +38,7 @@ class FundingScanner:
     def __init__(self, client, 
                  min_apr: float = None,
                  min_liquidity_usd: float = 1_000_000,
-                 max_breakeven_days: float = 5.0):
+                 max_breakeven_days: float = 90.0):
         """
         Args:
             client: HyperliquidClient instance
@@ -196,8 +196,8 @@ class FundingScanner:
         annual_income = daily_income_pct * 365
         net_apy = (annual_income - self.roundtrip_cost) * 100  # As percentage
         
-        # Viability check
-        viable = (days_to_breakeven < self.max_breakeven_days) and (net_apy > 15.0)
+        # Viability check - relaxed for testing
+        viable = (days_to_breakeven < self.max_breakeven_days) and (net_apy > 5.0)
         
         reason = ""
         if not viable:

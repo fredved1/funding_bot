@@ -86,8 +86,8 @@ MIN_SPREAD_THRESHOLD = 0.0025  # 0.25% minimum (covers fees + profit margin)
 # Maximum position size in USD (per trade)
 MAX_POSITION_USD = 500.0
 
-# Enable dry-run mode (no real trades) - DEFAULT TO SAFE!
-DRY_RUN = True
+# Enable dry-run mode (no real trades) - reads from .env, defaults to LIVE trading
+DRY_RUN = os.getenv("DRY_RUN", "False").lower() == "true"
 
 # ======== BOT SETTINGS ========
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
