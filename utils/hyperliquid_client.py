@@ -66,9 +66,15 @@ class HyperliquidClient:
         
         # Get symbol for order
         symbol = self._get_symbol(coin, side)
+        is_spot = side == "spot"
         
-        # Round size to proper decimals
-        size = self._round_size(coin, size)
+        # Get proper decimals for this asset
+        sz_decimals = self._get_sz_decimals(symbol, is_spot)
+        size = round(size, sz_decimals)
+        
+        # Round price: 8 decimals for spot, 6 for perp (SDK standard)
+        price_decimals = 8 if is_spot else 6
+        price = round(price, price_decimals)
         
         logger.info(f"📤 Placing {side} order: symbol={symbol}, is_buy={is_buy}, size={size}, price={price}")
         
@@ -80,7 +86,7 @@ class HyperliquidClient:
                     sz=size,
                     limit_px=price,
                     order_type={"limit": {"tif": "Ioc"}},  # IOC for immediate fill
-                    reduce_only=False  # Fixed: was buggy logic
+                    reduce_only=False
                 )
                 logger.info(f"📥 Order response: {result}")
                 return self._parse_order_result(result)
@@ -247,28 +253,52 @@ class HyperliquidClient:
             return coin  # e.g., "HYPE" for perp
     
     def _round_size(self, coin: str, size: float) -> float:
-        """Round size to proper decimals for the coin."""
-        if coin not in self._sz_decimals:
-            try:
-                meta = self.info.meta()
-                for asset in meta.get("universe", []):
-                    if asset.get("name") == coin:
-                        self._sz_decimals[coin] = asset.get("szDecimals", 2)
-                        break
-            except:
-                self._sz_decimals[coin] = 2
+        """Round size to proper decimals for the coin (perp only)."""
+        return round(size, self._get_sz_decimals(coin, False))
+    
+    def _get_sz_decimals(self, symbol: str, is_spot: bool) -> int:
+        """Get the correct size decimals for an asset."""
+        cache_key = symbol
         
-        decimals = self._sz_decimals.get(coin, 2)
-        return round(size, decimals)
+        if cache_key not in self._sz_decimals:
+            try:
+                if is_spot:
+                    # Spot assets - get from spot_meta
+                    spot_meta = self.info.spot_meta()
+                    for token in spot_meta.get('tokens', []):
+                        spot_sym = f"@{token.get('index')}"
+                        if spot_sym == symbol:
+                            self._sz_decimals[cache_key] = token.get('szDecimals', 2)
+                            break
+                    if cache_key not in self._sz_decimals:
+                        self._sz_decimals[cache_key] = 2  # Default
+                else:
+                    # Perp assets
+                    meta = self.info.meta()
+                    for asset in meta.get('universe', []):
+                        if asset.get('name') == symbol:
+                            self._sz_decimals[cache_key] = asset.get('szDecimals', 2)
+                            break
+                    if cache_key not in self._sz_decimals:
+                        self._sz_decimals[cache_key] = 2
+            except Exception as e:
+                logger.warning(f"Could not get szDecimals for {symbol}: {e}")
+                self._sz_decimals[cache_key] = 2
+        
+        return self._sz_decimals.get(cache_key, 2)
     
     def _parse_order_result(self, result: Dict) -> Dict[str, Any]:
-        """Parse SDK order result into standardized format."""
+        \"\"\"Parse SDK order result into standardized format.\"\"\"
         if result.get("status") != "ok":
             return {"status": "failed", "error": str(result)}
         
         response = result.get("response", {})
         data = response.get("data", {})
         statuses = data.get("statuses", [])
+        
+        if not statuses:
+            # No statuses = order was not processed
+            return {"status": "failed", "error": "No order status returned"}
         
         for s in statuses:
             if "filled" in s:
@@ -279,7 +309,10 @@ class HyperliquidClient:
                     "avg_price": float(filled.get("avgPx", 0)),
                     "oid": filled.get("oid")
                 }
+            elif "resting" in s:
+                # Order is on the book (IOC should not happen, but handle it)
+                return {"status": "failed", "error": "Order resting (IOC failed to fill)"}
             elif "error" in s:
                 return {"status": "failed", "error": s["error"]}
         
-        return {"status": "failed", "error": "Unknown response format"}
+        return {"status": "failed", "error": f"Unknown response: {statuses}"}
