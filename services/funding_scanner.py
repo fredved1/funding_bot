@@ -36,7 +36,7 @@ class FundingScanner:
     """
     
     def __init__(self, client, 
-                 min_apr: float = 0.20,
+                 min_apr: float = None,
                  min_liquidity_usd: float = 1_000_000,
                  max_breakeven_days: float = 5.0):
         """
@@ -47,7 +47,8 @@ class FundingScanner:
             max_breakeven_days: Maximum days acceptable to break even on fees
         """
         self.client = client
-        self.min_apr = min_apr
+        # Read from config if not provided
+        self.min_apr = min_apr if min_apr is not None else getattr(config, 'MIN_FUNDING_APR', 0.20)
         self.min_liquidity_usd = min_liquidity_usd
         self.max_breakeven_days = max_breakeven_days
         
