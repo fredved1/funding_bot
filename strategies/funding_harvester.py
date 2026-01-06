@@ -106,11 +106,27 @@ class FundingHarvester:
             if state.has_position(opp.coin):
                 continue
             
-            # Calculate position size
+            # Get balances FIRST to determine available capital
+            balances = await self.client.get_balances()
+            spot_available = balances["spot_usdc"]
+            perp_available = balances["perp_margin"]
+            
+            # Calculate max position based on available capital
+            # Need spot USDC for buying + perp margin for shorting
+            max_from_spot = spot_available * 0.95  # Use 95% of spot
+            max_from_perp = perp_available * 4  # 25% margin = 4x leverage max
+            
+            # Position size is limited by both
+            available_size = min(max_from_spot, max_from_perp, self.max_position_usd)
+            
+            # Calculate remaining capacity
             remaining_capacity = self.max_total_exposure - state.total_exposure_usd
-            size_usd = min(self.max_position_usd, remaining_capacity)
+            size_usd = min(available_size, remaining_capacity)
+            
+            logger.info(f"💰 Balance check: Spot=${spot_available:.2f}, Perp=${perp_available:.2f}, Max size=${size_usd:.2f}")
             
             if size_usd < 5:  # Minimum position lowered for testing
+                logger.warning(f"Position size ${size_usd:.2f} too small (min $5)")
                 continue
             
             # Get current prices
@@ -118,19 +134,6 @@ class FundingHarvester:
             
             if prices["spot_ask"] == 0 or prices["perp_bid"] == 0:
                 logger.warning(f"Invalid prices for {opp.coin}")
-                continue
-            
-            # Check balances - lowered requirements for testing
-            balances = await self.client.get_balances()
-            required_spot = size_usd * 1.02  # 2% buffer instead of 5%
-            required_margin = size_usd * 0.20  # 20% margin buffer instead of 30%
-            
-            if balances["spot_usdc"] < required_spot:
-                logger.warning(f"Insufficient spot USDC: ${balances['spot_usdc']:.2f}")
-                continue
-            
-            if balances["perp_margin"] < required_margin:
-                logger.warning(f"Insufficient perp margin: ${balances['perp_margin']:.2f}")
                 continue
             
             # Execute entry
