@@ -120,6 +120,39 @@ def fetch_market_data():
         }
 
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def fetch_funding_history(hours: int = 48):
+    """Fetch historical funding rates from Hyperliquid API."""
+    try:
+        end_time = int(datetime.now().timestamp() * 1000)
+        start_time = int((datetime.now() - timedelta(hours=hours)).timestamp() * 1000)
+        
+        response = requests.post(
+            'https://api.hyperliquid.xyz/info',
+            json={
+                'type': 'fundingHistory',
+                'coin': COIN_NAME,
+                'startTime': start_time,
+                'endTime': end_time
+            },
+            timeout=10
+        )
+        data = response.json()
+        
+        if not data:
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(data)
+        df['time'] = pd.to_datetime(df['time'], unit='ms')
+        df['fundingRate'] = df['fundingRate'].astype(float)
+        df['apr'] = df['fundingRate'] * 24 * 365 * 100  # Annual percentage rate
+        df['hourly_pct'] = df['fundingRate'] * 100  # Hourly percentage
+        return df.sort_values('time')
+    except Exception as e:
+        st.error(f"Failed to fetch funding history: {e}")
+        return pd.DataFrame()
+
+
 # ========== DATABASE HELPERS ==========
 
 def get_db_connection():
@@ -307,6 +340,73 @@ def render_live_status():
     
     # Live market monitor at top
     render_market_monitor()
+    
+    # Funding Rate History Chart
+    st.markdown("---")
+    st.header("📈 Funding Rate History (48h)")
+    
+    funding_df = fetch_funding_history(48)
+    if not funding_df.empty:
+        # Create the chart
+        fig = go.Figure()
+        
+        # Add APR line
+        fig.add_trace(go.Scatter(
+            x=funding_df['time'],
+            y=funding_df['apr'],
+            mode='lines+markers',
+            name='Funding APR %',
+            line=dict(color='#00d4aa', width=2),
+            marker=dict(size=4),
+            hovertemplate='%{x|%H:%M %d/%m}<br>APR: %{y:.2f}%<extra></extra>'
+        ))
+        
+        # Add target line
+        target_apr = MIN_FUNDING_APR * 100
+        fig.add_hline(
+            y=target_apr, 
+            line_dash="dash", 
+            line_color="orange",
+            annotation_text=f"Target: {target_apr:.0f}%",
+            annotation_position="right"
+        )
+        
+        # Add zero line
+        fig.add_hline(y=0, line_dash="dot", line_color="gray", opacity=0.5)
+        
+        fig.update_layout(
+            title=f"{COIN_NAME} Funding Rate (Annualized)",
+            xaxis_title="Time",
+            yaxis_title="APR %",
+            height=350,
+            margin=dict(l=40, r=40, t=60, b=40),
+            hovermode='x unified',
+            showlegend=False,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.1)')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.1)')
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Stats row
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            avg_apr = funding_df['apr'].mean()
+            st.metric("Avg APR (48h)", f"{avg_apr:.2f}%")
+        with col2:
+            max_apr = funding_df['apr'].max()
+            st.metric("Max APR", f"{max_apr:.2f}%")
+        with col3:
+            min_apr = funding_df['apr'].min()
+            st.metric("Min APR", f"{min_apr:.2f}%")
+        with col4:
+            current_apr = funding_df['apr'].iloc[-1] if len(funding_df) > 0 else 0
+            st.metric("Current APR", f"{current_apr:.2f}%")
+    else:
+        st.warning("No funding history data available.")
     
     st.markdown("---")
     st.header("📊 Positions & Trades")
